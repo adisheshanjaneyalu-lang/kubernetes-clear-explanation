@@ -1,0 +1,95 @@
+🚀 Main Command (7-day retention)
+velero schedule create daily-backup \
+  --schedule="0 2 * * *" \
+  --ttl 168h \
+  --include-namespaces default
+🧠 Simple Explanation (line by line)
+🔹 velero schedule create daily-backup
+
+👉 Create a scheduled backup job
+👉 daily-backup = name of the schedule
+
+🔹 --schedule="0 2 * * *"
+
+👉 This is cron format (time scheduling)
+
+0 2 * * *
+│ │ │ │ │
+│ │ │ │ └── Every day of week
+│ │ │ └──── Every month
+│ │ └────── Every day
+│ └──────── 2 AM
+└────────── 0 minutes
+
+👉 Meaning:
+
+Run backup every day at 2:00 AM
+
+🔹 --ttl 168h
+
+👉 TTL = Time To Live
+
+168 hours = 7 days
+
+👉 After 7 days:
+
+Backup automatically deleted ✅
+
+🔹 --include-namespaces default
+
+👉 Backup only default namespace
+
+👉 You can change:
+
+default → specific app
+production → prod workloads
+remove it → backup entire cluster
+🎯 What this command does (full picture)
+Every day at 2 AM:
+   ↓
+Take backup of default namespace
+   ↓
+Store in cloud (Azure / AWS)
+   ↓
+Keep only 7 days
+   ↓
+Auto delete old backups
+🔍 Verify everything
+Check schedule
+velero schedule get
+Check backups
+velero backup get
+Describe schedule
+velero schedule describe daily-backup
+🏭 Production version (better)
+velero schedule create prod-daily-backup \
+  --schedule="0 1 * * *" \
+  --ttl 168h \
+  --include-namespaces production
+
+👉 Runs at 1 AM for production apps
+
+💪 Interview-ready explanation
+
+You can say:
+
+“We configured Velero scheduled backups using cron expressions. The backups run daily at 2 AM with a TTL of 168 hours, ensuring only the last 7 days of backups are retained automatically. This reduces storage cost and ensures disaster recovery readiness.”
+
+🚀 Bonus (optional but powerful)
+Backup entire cluster
+velero schedule create full-backup \
+  --schedule="0 3 * * *" \
+  --ttl 168h
+Backup multiple namespaces
+velero schedule create multi-backup \
+  --schedule="0 2 * * *" \
+  --ttl 168h \
+  --include-namespaces default,production
+🎯 Final takeaway
+
+👉 This one command gives you:
+
+✔ Automation
+✔ Retention policy
+✔ Disaster recovery
+✔ Production-ready setup
