@@ -1,0 +1,301 @@
+🔥 Step 1: Download Velero properly
+wget https://github.com/velero-io/velero/releases/download/v1.13.2/velero-v1.13.2-linux-amd64.tar.gz
+🔥 Step 2: Extract
+tar -xvf velero-v1.13.2-linux-amd64.tar.gz
+🔥 Step 3: Move binary
+sudo mv velero-v1.13.2-linux-amd64/velero /usr/local/bin/
+🔥 Step 4: Verify
+velero version
+🧠 First understand (simple)
+
+In Microsoft Azure:
+
+Storage Account → Blob Container → Files (backups)
+
+👉 Velero stores backups inside Blob Container
+
+✅ Step-by-step (Azure CLI)
+🔥 Step 1: Login
+az login
+🔥 Step 2: Set variables (VERY IMPORTANT)
+RESOURCE_GROUP=velero-rg
+LOCATION=eastus
+STORAGE_ACCOUNT=velerostorage$RANDOM
+CONTAINER_NAME=velero-backups
+🔥 Step 3: Create Resource Group
+az group create \
+  --name $RESOURCE_GROUP \
+  --location $LOCATION
+🔥 Step 4: Create Storage Account
+az storage account create \
+  --name $STORAGE_ACCOUNT \
+  --resource-group $RESOURCE_GROUP \
+  --location $LOCATION \
+  --sku Standard_LRS \
+  --encryption-services blob
+🔥 Step 5: Get Storage Account Key
+ACCOUNT_KEY=$(az storage account keys list \
+  --resource-group $RESOURCE_GROUP \
+  --account-name $STORAGE_ACCOUNT \
+  --query '[0].value' -o tsv)
+🔥 Step 6: Create Blob Container
+az storage container create \
+  --name $CONTAINER_NAME \
+  --account-name $STORAGE_ACCOUNT \
+  --account-key $ACCOUNT_KEY
+🔥 Step 7: Verify
+az storage container list \
+  --account-name $STORAGE_ACCOUNT \
+  --account-key $ACCOUNT_KEY \
+  -o table
+
+👉 You should see:
+
+velero-backups
+🎯 Final result
+
+You now have:
+
+Azure Storage Account
+   ↓
+Blob Container (velero-backups)
+   ↓
+Ready for Velero backups
+🔥 Important for Velero
+
+You’ll need:
+
+Storage Account Name → $STORAGE_ACCOUNT
+Resource Group → $RESOURCE_GROUP
+Container Name → velero-backups
+💪 Pro Tips (real production)
+✅ Use unique storage account name
+
+Azure requires:
+
+lowercase + globally unique
+✅ Use same region as AKS
+
+👉 Faster + cheaper
+
+✅ Don’t hardcode keys (later)
+
+👉 Use:
+
+Managed Identity (advanced production)
+
+
+🚀 STEP 1: Create Azure credentials (Service Principal)
+
+Velero needs permission to store backups in Azure.
+
+🔥 Run this:
+az ad sp create-for-rbac \
+  --name "velero-sp" \
+  --role "Contributor" \
+  --scopes /subscriptions/$(az account show --query id -o tsv)
+
+👉 Output will look like:
+
+{
+  "appId": "xxxxx",
+  "password": "xxxxx",
+  "tenant": "xxxxx"
+}
+
+⚠️ Save this — VERY IMPORTANT
+
+🚀 STEP 2: Create credentials file
+nano credentials-velero
+
+Paste this:
+
+AZURE_SUBSCRIPTION_ID=<your-subscription-id>
+AZURE_TENANT_ID=<tenant-id>
+AZURE_CLIENT_ID=<appId>
+AZURE_CLIENT_SECRET=<password>
+AZURE_RESOURCE_GROUP=<your-resource-group>
+AZURE_CLOUD_NAME=AzurePublicCloud
+
+👉 Get subscription ID:
+
+az account show --query id -o tsv
+🚀 STEP 3: Install Velero in AKS
+
+Now run (replace values):
+
+velero install \
+  --provider azure \
+  --plugins velero/velero-plugin-for-microsoft-azure:v1.8.0 \
+  --bucket velero-backups \
+  --secret-file ./credentials-velero \
+  --backup-location-config resourceGroup=<your-resource-group>,storageAccount=<your-storage-account> \
+  --snapshot-location-config resourceGroup=<your-resource-group> \
+  --use-node-agent
+🚀 STEP 4: Verify installation
+kubectl get pods -n velero
+
+👉 Expected:
+
+velero-xxxxx   Running
+🚀 STEP 5: Take your first backup
+
+👉 Backup entire cluster:
+
+velero backup create first-backup
+🔍 Check backup
+velero backup get
+
+👉 Status should be:
+
+Completed
+🚀 STEP 6: Test restore (VERY IMPORTANT)
+Create test namespace:
+kubectl create ns test-velero
+Delete it:
+kubectl delete ns test-velero
+Restore:
+velero restore create --from-backup first-backup
+
+👉 Namespace comes back = SUCCESS ✅
+
+🔥 STEP 7: Schedule automatic backups
+velero schedule create daily-backup \
+  --schedule="0 2 * * *"
+
+👉 Daily backup at 2 AM
+
+🧠 Important production concepts
+🔴 1. Without volume snapshots
+
+Velero backs up:
+
+YAML only ❌ data missing
+🔴 2. With snapshots (important)
+
+Add:
+
+--use-node-agent
+
+👉 Required for:
+
+databases
+persistent volumes
+🎯 Best practices (real companies)
+✅ Backup only required namespaces
+velero backup create app-backup --include-namespaces=myapp
+✅ Always test restore
+
+👉 Backup without restore test = useless
+
+✅ Monitor backups
+velero backup logs first-backup
+💪 What you achieved
+
+You now have:
+
+Backup system ✅
+Disaster recovery setup ✅
+Production-level Velero knowledge ✅
+🚀 Next level (very important)
+
+If you want to become 🔥 strong:
+
+I can teach you:
+
+Velero + MySQL backup properly (not just YAML)
+Full disaster recovery drill (like companies do)
+Velero in CI/CD pipeline
+Cross-region backup strategy
+
+Just say:🎯 Goal
+👉 Keep backups only for last 7 days
+👉 Older backups → automatically deleted
+
+🧠 How Velero does this
+Velero uses something called:
+
+TTL (Time To Live)
+
+
+⏰ Example
+TTL = 168h  → 168 hours = 7 days
+
+✅ 1. While creating backup (manual)
+velero backup create nginx-backup \  --ttl 168h
+👉 After 7 days → backup auto deleted
+
+✅ 2. BEST WAY (Production) → Use schedule
+Instead of manual backup, companies use scheduled backups
+
+🔥 Daily backup + keep only 7 days
+velero schedule create daily-backup \  --schedule="0 2 * * *" \  --ttl 168h
+
+🧠 What this does
+
+
+Runs every day at 2 AM
+
+
+Keeps backup for 7 days
+
+
+Old backups auto removed
+
+
+
+📅 How it works internally
+Day 1 → Backup1Day 2 → Backup2...Day 7 → Backup7Day 8 → Backup1 deleted ❌
+
+🔍 Check schedules
+velero schedule get
+
+🔍 Check backups
+velero backup get
+
+🧠 Production best practice
+
+✅ 1. Always use schedule (not manual)
+Manual = ❌
+Scheduled = ✅
+
+✅ 2. Different TTL for different environments
+EnvironmentTTLDev2–3 daysStaging7 daysProduction15–30 days
+
+✅ 3. Use labels (advanced)
+velero backup create prod-backup \  --ttl 168h \  --labels env=prod
+
+✅ 4. Monitor backups
+👉 If backup fails → alert
+
+🚀 Real-world example (best answer for interview)
+
+“We configured Velero scheduled backups with a TTL of 168 hours to retain only the last 7 days of backups. This ensured automatic cleanup of old backups and optimized storage usage.”
+
+
+💪 Quick recap
+👉 Use this command in your project:
+velero schedule create daily-backup \  --schedule="0 2 * * *" \  --ttl 168h
+
+🚀 Next level (if you want)
+I can show you:
+
+
+Backup only databases (important)
+
+
+Store backups in different region
+
+
+Disaster recovery across clusters
+
+
+Just say:
+👉 “advanced backup strategy”
+
+👉 “next level DR drill”
+
+
+
+  
+  
